@@ -4,8 +4,14 @@
 
 #### Distroless
 
-* PyTorch Distroless Pre-Trained Model
-* Hugging Face Distroless Pre-Trained Model
+###### Rust T5 Model
+
+
+##### PyTorch Distroless Pre-Trained Model
+
+* Package PyTorch into a Rust Distroless Container
+
+##### Hugging Face Distroless Pre-Trained Model
 
 #### Binary Deployment
 

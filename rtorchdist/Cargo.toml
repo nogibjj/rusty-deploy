@@ -1,0 +1,17 @@
+[package]
+name = "rtorchdist"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tch = "0.11.0"
+actix-web = "4.0.0-beta.8"
+actix-multipart = "0.6.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+image = "0.24.6"
+env_logger = "0.10.0"
+futures = "0.3.17"
+bytemuck = "1.7.2" 
