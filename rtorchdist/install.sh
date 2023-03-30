@@ -23,5 +23,16 @@ fi
 if grep -q "LD_LIBRARY_PATH" ~/.bashrc; then
     echo "LD_LIBRARY_PATH is already in ~/.bashrc"
 else
-    echo "export LD_LIBRARY_PATH=${LIBTORCH}/lib:$LD_LIBRARY_PATH" >> ~/.bashrc
+    echo 'export LD_LIBRARY_PATH=${LIBTORCH}/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
 fi
+
+# Define check_libtorch alias if it doesn't exist in ~/.bashrc
+if grep -q "check_libtorch" ~/.bashrc; then
+    echo "check_libtorch alias is already in ~/.bashrc"
+else
+    echo 'alias check_libtorch="echo \"#include <torch/torch.h>\" | g++ -xc++ - -o /dev/null -v -L$LIBTORCH/lib -ltorch -lc10 -lstdc++ -Wl,-rpath=$LIBTORCH/lib 2>&1 | grep \"successfully\|not found\""' >> ~/.bashrc
+fi
+
+# Check if libtorch is installed correctly
+echo "Checking if libtorch is installed correctly..."
+check_libtorch
