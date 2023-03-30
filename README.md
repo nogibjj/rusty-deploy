@@ -12,3 +12,5 @@
 * Statically Linked ONNX to Rust Binary
 * Statically Linked PyTorch to Rust Binary
 * Statically Linked HuggingFace to Rust Binary
+
+### References
