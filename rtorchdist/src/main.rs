@@ -1,23 +1,51 @@
-use actix_multipart::Multipart;
+use actix_multipart::{Field, Multipart};
 use actix_web::error::ErrorInternalServerError;
 use actix_web::error::ResponseError;
 use actix_web::get;
+use actix_web::http::header::ContentDisposition;
 use actix_web::{middleware::Logger, post, App, HttpServer};
 use actix_web::{Error, HttpResponse, Result};
 use futures::StreamExt;
 use serde::Serialize;
 use std::env;
 use std::fmt;
-use std::io::Write;
 use tch::{Device, IValue, Kind, Tensor};
 
 #[derive(Debug)]
 pub enum CustomError {
     ImageError(image::ImageError),
-    TchError(tch::TchError),
+    TchError { field1: tch::TchError },
     ActixMultipartError(actix_multipart::MultipartError),
     IoError(std::io::Error),
     Other(String),
+    NewVariant(u32),
+    StringError(String),
+    Message(String),
+}
+
+// Add TensorError to the trait definition
+trait IntoCustomError<T, TensorError> {
+    fn into_custom_error(self, message: &str) -> Result<T, TensorError>;
+}
+
+// Implement the trait for Tensor
+impl IntoCustomError<tch::Tensor, CustomError> for tch::Tensor {
+    fn into_custom_error(self, _message: &str) -> Result<tch::Tensor, CustomError> {
+        Ok(self)
+    }
+}
+
+impl<T> IntoCustomError<T, CustomError> for Result<T, String> {
+    fn into_custom_error(self, message: &str) -> Result<T, CustomError> {
+        self.map_err(|e| CustomError::StringError(format!("{}: {}", message, e)))
+    }
+}
+
+// Implement From<&str> for CustomError
+impl From<&str> for CustomError {
+    fn from(message: &str) -> Self {
+        CustomError::Message(message.to_string())
+    }
 }
 
 impl CustomError {
@@ -49,11 +77,14 @@ impl fmt::Display for CustomError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CustomError::ImageError(e) => write!(f, "ImageError: {}", e),
-            CustomError::TchError(e) => write!(f, "TchError: {}", e),
+            CustomError::TchError { field1: e } => write!(f, "TchError: {}", e),
             CustomError::ActixMultipartError(e) => write!(f, "ActixMultipartError: {}", e),
             CustomError::IoError(e) => write!(f, "IoError: {}", e),
             // Add a match arm for the Other variant
             CustomError::Other(e) => write!(f, "OtherError: {}", e),
+            CustomError::NewVariant(e) => write!(f, "NewVariantError: {}", e),
+            CustomError::StringError(ref s) => write!(f, "StringError: {}", s),
+            CustomError::Message(s) => write!(f, "Message: {}", s),
         }
     }
 }
@@ -72,7 +103,7 @@ impl From<image::ImageError> for CustomError {
 
 impl From<tch::TchError> for CustomError {
     fn from(e: tch::TchError) -> Self {
-        CustomError::TchError(e)
+        CustomError::TchError { field1: e }
     }
 }
 
@@ -98,10 +129,19 @@ fn preprocess_image(image_data: Vec<u8>) -> Result<Tensor, CustomError> {
     let image = image::load_from_memory(&image_data)
         .map_err(CustomError::from)?
         .to_rgb8();
-    let resized = image::imageops::resize(&image, 224, 224, image::imageops::FilterType::Triangle);
 
-    let resized_raw = resized.into_raw();
-    let norm_img: Vec<f32> = resized_raw.into_iter().map(|v| v as f32 / 255.0).collect();
+    // Resize the image to 256x256
+    let mut resized =
+        image::imageops::resize(&image, 256, 256, image::imageops::FilterType::Triangle);
+
+    // Center crop the image to 224x224
+    let (width, height) = (224, 224);
+    let crop_x = (resized.width() - width) / 2;
+    let crop_y = (resized.height() - height) / 2;
+    let cropped = image::imageops::crop(&mut resized, crop_x, crop_y, width, height);
+
+    let cropped_raw = cropped.to_image().into_raw();
+    let norm_img: Vec<f32> = cropped_raw.into_iter().map(|v| v as f32 / 255.0).collect();
     println!("norm_img: {:?}", norm_img);
     let byte_data: Vec<u8> = bytemuck::cast_slice(&norm_img).to_vec();
 
@@ -122,21 +162,50 @@ fn get_model() -> Result<tch::CModule, CustomError> {
     tch::CModule::load(model_path).map_err(CustomError::from)
 }
 
-fn get_prediction_class(prediction: &Tensor) -> Result<usize, Box<dyn std::error::Error>> {
-    let class = prediction.argmax(0, false).int64_value(&[0]) as usize;
-    Ok(class)
+fn get_prediction_class(output: &Tensor) -> Result<usize, actix_web::Error> {
+    if output.dim() > 0 {
+        let max_index = output.argmax(-1, false).to_kind(Kind::Int64);
+        Ok(max_index.int64_value(&[0]) as usize)
+    } else {
+        Err(actix_web::Error::from(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "Output tensor has 0 dimensions.",
+        )))
+    }
 }
-
+/*
+read image data from the payload and preprocess it
+ */
 async fn read_image_data_and_preprocess(mut payload: Multipart) -> Result<Tensor, CustomError> {
-    let mut image_data = vec![];
-    while let Some(item) = payload.next().await {
-        let mut field = item?;
-        while let Some(chunk) = field.next().await {
-            let data = chunk?;
-            image_data.write_all(&data)?;
+    let mut field_opt: Option<Field> = None;
+
+    while let Some(field) = payload.next().await {
+        let field = field.map_err(CustomError::from)?;
+        let cd = field.content_disposition();
+
+        if let Some(name) = get_name_from_content_disposition(cd) {
+            if name == "image" {
+                field_opt = Some(field);
+                break;
+            }
         }
     }
+
+    let mut field = field_opt
+        .ok_or_else(|| CustomError::from("Failed to find the `image` field in the payload"))?;
+
+    let mut buf = Vec::new();
+    while let Some(chunk) = field.next().await {
+        let data = chunk.map_err(CustomError::from)?;
+        buf.extend_from_slice(&data);
+    }
+    let image_data = buf;
+
     preprocess_image(image_data)
+}
+
+fn get_name_from_content_disposition(content_disposition: &ContentDisposition) -> Option<String> {
+    content_disposition.get_name().map(ToString::to_string)
 }
 
 async fn predict_image(tensor: Tensor, model: &tch::CModule) -> Result<Prediction, CustomError> {
@@ -174,7 +243,9 @@ async fn predict(payload: Multipart) -> Result<HttpResponse, CustomError> {
 
     println!("Class: {:?}", result.class);
     println!("Confidence: {:?}", result.confidence);
-    Ok(HttpResponse::Ok().json(result))
+    Ok(HttpResponse::Ok().json(result)).map_err(|e: std::fmt::Error| {
+        CustomError::new(&format!("Failed to serialize response: {}", e))
+    })
 }
 
 #[get("/self_check")]

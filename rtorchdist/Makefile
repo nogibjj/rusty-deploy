@@ -4,6 +4,8 @@ format:
 lint:
 	cargo clippy --quiet
 
+refactor: format lint
+
 build:
 	cargo build -j 15 --release
 
@@ -19,6 +21,7 @@ test:
 .PHONY: run
 
 run:
+	#cargo build -j 15 --release && \
 	export RUSTFLAGS="-C target-cpu=native" && \
 	export XNNPACK_DISABLE=1 && \
 	cargo run
