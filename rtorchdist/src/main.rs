@@ -38,6 +38,12 @@ impl From<std::io::Error> for CustomError {
     }
 }
 
+impl From<Box<dyn std::error::Error>> for CustomError {
+    fn from(error: Box<dyn std::error::Error>) -> Self {
+        CustomError::Other(error.to_string())
+    }
+}
+
 // Update the Display implementation for CustomError
 impl fmt::Display for CustomError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -87,18 +93,6 @@ async fn index() -> HttpResponse {
     HttpResponse::Ok().content_type("text/plain").body("Send an image payload using curl with the following command:\ncurl -X POST -H \"Content-Type: multipart/form-data\" -F \"image=@/path/to/your/image.jpg\" http://127.0.0.1:8080/predict")
 }
 
-async fn read_image_data(mut payload: Multipart) -> Result<Vec<u8>, CustomError> {
-    let mut image_data = vec![];
-    while let Some(item) = payload.next().await {
-        let mut field = item?;
-        while let Some(chunk) = field.next().await {
-            let data = chunk?;
-            image_data.write_all(&data)?;
-        }
-    }
-    Ok(image_data)
-}
-
 fn preprocess_image(image_data: Vec<u8>) -> Result<Tensor, CustomError> {
     println!("Received image data with length {}", image_data.len());
     let image = image::load_from_memory(&image_data)
@@ -133,19 +127,22 @@ fn get_prediction_class(prediction: &Tensor) -> Result<usize, Box<dyn std::error
     Ok(class)
 }
 
-#[post("/predict")]
-async fn predict(payload: Multipart) -> Result<HttpResponse, CustomError> {
-    // Read image data from multipart request
-    let image_data = read_image_data(payload).await?;
-    // Preprocess image data into a Tensor
-    let tensor = preprocess_image(image_data)?;
-    // Load the model
-    let model = get_model()?;
+async fn read_image_data_and_preprocess(mut payload: Multipart) -> Result<Tensor, CustomError> {
+    let mut image_data = vec![];
+    while let Some(item) = payload.next().await {
+        let mut field = item?;
+        while let Some(chunk) = field.next().await {
+            let data = chunk?;
+            image_data.write_all(&data)?;
+        }
+    }
+    preprocess_image(image_data)
+}
+
+async fn predict_image(tensor: Tensor, model: &tch::CModule) -> Result<Prediction, CustomError> {
     // Move tensor to CPU
     let input_tensor = tensor.to_device(Device::Cpu);
 
-    println!("Input tensor size: {:?}", input_tensor.size());
-    println!("Input tensor dtype: {:?}", input_tensor.kind());
     // Forward pass through model
     let output = model.forward_is(&[IValue::from(input_tensor)])?;
 
@@ -156,36 +153,28 @@ async fn predict(payload: Multipart) -> Result<HttpResponse, CustomError> {
 
     // Get softmax distribution
     let prediction = prediction_tensor.softmax(-1, Kind::Float).get(0);
-    println!("Output tensor size: {:?}", prediction.size());
-    println!("Output tensor dtype: {:?}", prediction.kind());
 
-    if prediction.size()[0] == 0 {
-        return Err(CustomError::new("Prediction tensor is empty!"));
-    }
-
-    if prediction.numel() == 0 {
+    if prediction.size()[0] == 0 || prediction.numel() == 0 {
         return Err(CustomError::new("Prediction tensor is empty!"));
     }
 
     // Get the index of the most likely class
-    let class_option = prediction.argmax(0, false);
+    let class = get_prediction_class(&prediction)?;
 
-    // Handle the case when `int64_value` returns `None`
-    if let Some(value) = class_option.int64_value(&[0]) {
-        let class = value as usize;
+    // Get the confidence of the most likely class
+    let confidence = prediction.double_value(&[class as i64]);
+    Ok(Prediction { class, confidence })
+}
 
-        // Get the confidence of the most likely class
-        let confidence = prediction.double_value(&[class as i64]);
-        let result = Prediction { class, confidence };
+#[post("/predict")]
+async fn predict(payload: Multipart) -> Result<HttpResponse, CustomError> {
+    let tensor = read_image_data_and_preprocess(payload).await?;
+    let model = get_model()?;
+    let result = predict_image(tensor, &model).await?;
 
-        println!("Class: {:?}", class);
-        println!("Confidence: {:?}", confidence);
-        Ok(HttpResponse::Ok().json(result))
-    } else {
-        Err(CustomError::new(
-            "Failed to get class from prediction tensor",
-        ))
-    }
+    println!("Class: {:?}", result.class);
+    println!("Confidence: {:?}", result.confidence);
+    Ok(HttpResponse::Ok().json(result))
 }
 
 #[get("/self_check")]

@@ -5,7 +5,7 @@ lint:
 	cargo clippy --quiet
 
 build:
-	cargo build -j 6
+	cargo build -j 15 --release
 
 dbuild:
 	docker build -t pytorch-rust-distroless .
