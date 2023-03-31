@@ -1,3 +1,6 @@
+##ignore .ot
+resnet34.ot
+
 #ignore jars
 *.jar
 
