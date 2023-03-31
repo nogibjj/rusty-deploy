@@ -1,5 +1,5 @@
 ##ignore .ot
-resnet34.ot
+*.ot
 
 #ignore jars
 *.jar
