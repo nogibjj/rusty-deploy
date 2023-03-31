@@ -1,3 +1,9 @@
+#ignore jars
+*.jar
+
+#ignore torch
+*.pt
+
 #checksums
 testfiles
 
@@ -23,3 +29,4 @@ Cargo.lock
 
 #ignore the diffusers project (large data)
 diffusers-rs
+*.pt
