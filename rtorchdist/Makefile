@@ -16,12 +16,13 @@ drun:
 	docker run -p 8080:8080 pytorch-rust-distroless
 
 test:
-	cargo test --quiet
+	cargo test --test-threads=12 
 
 .PHONY: run
 
 run:
 	#cargo build -j 15 --release && \
+	export RUST_BACKTRACE=1 && \
 	export RUSTFLAGS="-C target-cpu=native" && \
 	export XNNPACK_DISABLE=1 && \
 	cargo run

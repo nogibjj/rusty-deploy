@@ -11,6 +11,9 @@ use std::env;
 use std::fmt;
 use tch::{Device, IValue, Kind, Tensor};
 
+//from lib
+use rtorchdist::get_prediction_class;
+
 #[derive(Debug)]
 pub enum CustomError {
     ImageError(image::ImageError),
@@ -142,14 +145,18 @@ fn preprocess_image(image_data: Vec<u8>) -> Result<Tensor, CustomError> {
 
     let cropped_raw = cropped.to_image().into_raw();
     let norm_img: Vec<f32> = cropped_raw.into_iter().map(|v| v as f32 / 255.0).collect();
-    println!("norm_img: {:?}", norm_img);
+    log::info!("norm_img: {:.20?}", norm_img);
     let byte_data: Vec<u8> = bytemuck::cast_slice(&norm_img).to_vec();
 
     let tensor = Tensor::of_data_size(&byte_data, &[1, 224, 224, 3], tch::Kind::Float)
         .permute(&[0, 3, 1, 2])
         .to_device(Device::Cpu);
-    println!("Created tensor with size {:?}", tensor.size());
-    println!("Tensor:\n{}", tensor);
+    log::info!(
+        "Created tensor with size {:?} in function: {}",
+        tensor.size(),
+        module_path!()
+    );
+    log::info!("Tensor:\n{} in function: {}", tensor, module_path!());
     Ok(tensor)
 }
 
@@ -158,25 +165,19 @@ fn get_model() -> Result<tch::CModule, CustomError> {
         Ok(path) => path,
         Err(_) => "model/resnet34.ot".to_string(),
     };
-
+    log::info!("Loading model from path: {}", model_path);
     tch::CModule::load(model_path).map_err(CustomError::from)
 }
 
-fn get_prediction_class(output: &Tensor) -> Result<usize, actix_web::Error> {
-    if output.dim() > 0 {
-        let max_index = output.argmax(-1, false).to_kind(Kind::Int64);
-        Ok(max_index.int64_value(&[0]) as usize)
-    } else {
-        Err(actix_web::Error::from(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "Output tensor has 0 dimensions.",
-        )))
-    }
-}
 /*
 read image data from the payload and preprocess it
  */
 async fn read_image_data_and_preprocess(mut payload: Multipart) -> Result<Tensor, CustomError> {
+    //create log message that describes the payload as well as the name of the function
+    log::info!(
+        "Reading image data from payload in function: {}",
+        module_path!()
+    );
     let mut field_opt: Option<Field> = None;
 
     while let Some(field) = payload.next().await {
@@ -237,9 +238,16 @@ async fn predict_image(tensor: Tensor, model: &tch::CModule) -> Result<Predictio
 
 #[post("/predict")]
 async fn predict(payload: Multipart) -> Result<HttpResponse, CustomError> {
+    log::info!("Starting prediction...");
+
     let tensor = read_image_data_and_preprocess(payload).await?;
+    log::info!("Image data read and preprocessed");
+
     let model = get_model()?;
+    log::info!("Model loaded");
+
     let result = predict_image(tensor, &model).await?;
+    log::info!("Image prediction completed");
 
     println!("Class: {:?}", result.class);
     println!("Confidence: {:?}", result.confidence);
@@ -250,17 +258,27 @@ async fn predict(payload: Multipart) -> Result<HttpResponse, CustomError> {
 
 #[get("/self_check")]
 async fn self_check() -> Result<HttpResponse, Error> {
-    let model_path = env::var("MODEL_PATH").unwrap_or_else(|_| "model/resnet34.ot".to_string());
+    //add log message that describes the function
+    log::info!("Starting self check in function: {}", module_path!());
+    //log the route that is being called
+    log::info!("Calling route: {}", module_path!());
 
-    let model = tch::CModule::load(model_path)
+    let model_path = env::var("MODEL_PATH").unwrap_or_else(|_| "model/resnet34.ot".to_string());
+    log::info!("Model path: {}", model_path);
+
+    let model = tch::CModule::load(&model_path)
         .map_err(|e| ErrorInternalServerError(format!("Failed to load model: {}", e)))?;
+    log::info!("Model loaded successfully");
 
     let dummy_input = Tensor::ones(&[1, 3, 224, 224], (tch::Kind::Float, tch::Device::Cpu));
+    log::info!("Dummy input tensor:\n{}", dummy_input);
+
     let output = model
         .forward_is(&[IValue::from(dummy_input)])
         .map_err(|e| ErrorInternalServerError(format!("Model failed on input: {}", e)))?;
+    log::info!("Forward pass through model completed successfully");
 
-    let _prediction_tensor = match output {
+    let prediction_tensor = match output {
         IValue::Tensor(tensor) => tensor,
         _ => {
             return Err(ErrorInternalServerError(
@@ -268,6 +286,21 @@ async fn self_check() -> Result<HttpResponse, Error> {
             ));
         }
     };
+    log::info!("Prediction tensor:\n{}", prediction_tensor);
+
+    let prediction_size = prediction_tensor.size();
+    if prediction_size[0] == 0 || prediction_tensor.numel() == 0 {
+        return Err(ErrorInternalServerError(
+            "Prediction tensor is empty!".to_string(),
+        ));
+    }
+    log::info!("Prediction tensor size: {:?}", prediction_size);
+
+    let class = get_prediction_class(&prediction_tensor)?;
+    log::info!("Most likely class index: {:?}", class);
+
+    let confidence = prediction_tensor.double_value(&[class as i64]);
+    log::info!("Confidence of most likely class: {}", confidence);
 
     Ok(HttpResponse::Ok().json("Self-check completed successfully!"))
 }

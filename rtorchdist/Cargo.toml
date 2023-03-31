@@ -16,6 +16,11 @@ bytemuck = "1.7.2"
 imageproc = "0.23.0"
 mime = "0.3.16"
 failure = "0.1.8"
+log = "0.4.14"
+
+[lib]
+name = "rtorchdist"
+path = "src/lib.rs"
 
 
 [profile.release]

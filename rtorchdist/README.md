@@ -54,6 +54,11 @@ C++ PyTorch API is functional. Installation complete.
 * The index route will give you an example to curl against.
 * Selfcheck will self check model:  `curl localhost:8080/self_check`
 
+### More Testing
+
+* You can run: `cargo test --test vision_tests` after you build to ensure PyTorch is actually working with Rust bindings
+* You can run: `cargo test --test model_tests` which tests model loading or `cargo test --test model_tests -- --nocapture`
+
 
 #### Notes
 
