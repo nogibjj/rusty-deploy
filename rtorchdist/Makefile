@@ -16,7 +16,11 @@ drun:
 test:
 	cargo test --quiet
 
+.PHONY: run
+
 run:
-	cargo run 
+	export RUSTFLAGS="-C target-cpu=native" && \
+	export XNNPACK_DISABLE=1 && \
+	cargo run
 
 all: format lint test run
