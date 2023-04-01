@@ -1,5 +1,15 @@
 ## A Distroless Rust PyTorch Example
 
+To run: 
+
+```
+dbuild:
+	docker build -t pytorch-rust-distroless .
+
+drun:
+	docker run -p 8080:8080 pytorch-rust-distroless
+```
+
 ### Rust Image Prediction Web Server
 
 This is a Rust code that uses the Actix Web framework to create a simple web server that takes an image as input, runs it through a pre-trained ResNet34 model to make a prediction, and returns the predicted class and confidence score as a JSON response.
@@ -13,8 +23,8 @@ The code imports necessary libraries and creates a `CustomError` enum for handli
 There are four main routes defined:
 
 1. **GET /**: The index route, which returns instructions on how to send an image payload using curl for making predictions.
-2. **POST /predict**: The predict route, which receives an image as a multipart payload, processes it, runs the image through a ResNet34 model, and returns the predicted class and confidence score as a JSON response.
-3. **GET /self_check**: The self_check route, which checks if the model is loaded and runs a dummy input through it, returning a success message if it works.
+2. **POST /predict**: The predict route, which receives an image as a multipart payload, processes it, runs the image through a ResNet34 model, and returns the predicted class and confidence score as a JSON response. (BROKEN CURRENTLY)
+3. **GET /check_pytorch_cpu**: The self_check route, which checks if the model is loaded and runs a dummy input through it, returning a success message if it works.
 
 ## Main Function
 
