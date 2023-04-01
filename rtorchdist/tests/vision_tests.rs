@@ -1,3 +1,7 @@
+/*
+Taken from here to ensure I have proper install
+https://github.com/LaurentMazare/tch-rs/blob/main/tests/vision_tests.rs
+ */
 use tch::{nn, vision, Tensor};
 
 #[test]

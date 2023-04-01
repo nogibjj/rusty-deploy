@@ -16,8 +16,7 @@ drun:
 	docker run -p 8080:8080 pytorch-rust-distroless
 
 test:
-	cargo test --test-threads=12 
-
+	cargo test 
 .PHONY: run
 
 run:
