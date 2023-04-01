@@ -2,11 +2,11 @@ use tch::Kind;
 use tch::Tensor;
 
 pub fn get_prediction_class(output: &Tensor) -> Result<usize, actix_web::Error> {
-    // Check if the output tensor has any dimensions.
-    if output.dim() <= 0 {
+    // Check if the output tensor has the expected dimensions.
+    if output.dim() != 2 || output.size()[0] != 1 {
         return Err(actix_web::Error::from(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
-            "Output tensor has 0 dimensions.",
+            "Output tensor has an unexpected shape.",
         )));
     }
 
