@@ -18,6 +18,7 @@ failure = "0.1.8"
 log = "0.4.14"
 base64 = "0.21"
 anyhow = "1.0"
+test-env-log = "0.2.8"
 
 [lib]
 name = "rtorchdist"
@@ -28,3 +29,5 @@ opt-level = 3
 codegen-units = 1
 lto = "fat"
 panic = "abort"
+
+

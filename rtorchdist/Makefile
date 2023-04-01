@@ -16,7 +16,7 @@ drun:
 	docker run -p 8080:8080 pytorch-rust-distroless
 
 test:
-	cargo test 
+	RUST_LOG=debug,info cargo test -- --nocapture
 .PHONY: run
 
 run:

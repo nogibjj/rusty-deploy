@@ -145,10 +145,8 @@ impl From<PredictError> for CustomError {
     }
 }
 
-
 impl From<PredictError> for TchError {
     fn from(error: PredictError) -> Self {
         TchError::Kind(error.to_string())
     }
 }
-

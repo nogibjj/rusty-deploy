@@ -9,7 +9,7 @@ use cerror::CustomError;
 
 //from lib
 use rtorchdist::{
-    convert_payload_to_vec_u8, get_model, predict_image, preprocess_image, tensor_device_cpu
+    convert_payload_to_vec_u8, get_model, predict_image, preprocess_image, tensor_device_cpu,
 };
 
 #[get("/")]
