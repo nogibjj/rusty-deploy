@@ -1,6 +1,4 @@
 use actix_multipart::{Field, Multipart};
-use actix_web::error::ErrorInternalServerError;
-use actix_web::error::ResponseError;
 use actix_web::get;
 use actix_web::http::header::ContentDisposition;
 use actix_web::{middleware::Logger, post, App, HttpServer};
@@ -8,113 +6,16 @@ use actix_web::{Error, HttpResponse, Result};
 use futures::StreamExt;
 use serde::Serialize;
 use std::env;
-use std::fmt;
+
 use tch::{Device, IValue, Kind, Tensor};
+
+//custom errors
+mod cerror;
+use cerror::CustomError;
 
 //from lib
 use rtorchdist::get_prediction_class;
-
-#[derive(Debug)]
-pub enum CustomError {
-    ImageError(image::ImageError),
-    TchError { field1: tch::TchError },
-    ActixMultipartError(actix_multipart::MultipartError),
-    IoError(std::io::Error),
-    Other(String),
-    NewVariant(u32),
-    StringError(String),
-    Message(String),
-}
-
-// Add TensorError to the trait definition
-trait IntoCustomError<T, TensorError> {
-    fn into_custom_error(self, message: &str) -> Result<T, TensorError>;
-}
-
-// Implement the trait for Tensor
-impl IntoCustomError<tch::Tensor, CustomError> for tch::Tensor {
-    fn into_custom_error(self, _message: &str) -> Result<tch::Tensor, CustomError> {
-        Ok(self)
-    }
-}
-
-impl<T> IntoCustomError<T, CustomError> for Result<T, String> {
-    fn into_custom_error(self, message: &str) -> Result<T, CustomError> {
-        self.map_err(|e| CustomError::StringError(format!("{}: {}", message, e)))
-    }
-}
-
-// Implement From<&str> for CustomError
-impl From<&str> for CustomError {
-    fn from(message: &str) -> Self {
-        CustomError::Message(message.to_string())
-    }
-}
-
-impl CustomError {
-    fn new(message: &str) -> Self {
-        CustomError::Other(message.to_string())
-    }
-}
-
-impl From<Error> for CustomError {
-    fn from(error: Error) -> Self {
-        CustomError::new(&error.to_string())
-    }
-}
-
-impl From<std::io::Error> for CustomError {
-    fn from(error: std::io::Error) -> Self {
-        CustomError::IoError(error)
-    }
-}
-
-impl From<Box<dyn std::error::Error>> for CustomError {
-    fn from(error: Box<dyn std::error::Error>) -> Self {
-        CustomError::Other(error.to_string())
-    }
-}
-
-// Update the Display implementation for CustomError
-impl fmt::Display for CustomError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CustomError::ImageError(e) => write!(f, "ImageError: {}", e),
-            CustomError::TchError { field1: e } => write!(f, "TchError: {}", e),
-            CustomError::ActixMultipartError(e) => write!(f, "ActixMultipartError: {}", e),
-            CustomError::IoError(e) => write!(f, "IoError: {}", e),
-            // Add a match arm for the Other variant
-            CustomError::Other(e) => write!(f, "OtherError: {}", e),
-            CustomError::NewVariant(e) => write!(f, "NewVariantError: {}", e),
-            CustomError::StringError(ref s) => write!(f, "StringError: {}", s),
-            CustomError::Message(s) => write!(f, "Message: {}", s),
-        }
-    }
-}
-
-impl ResponseError for CustomError {
-    fn error_response(&self) -> HttpResponse {
-        HttpResponse::InternalServerError().json(format!("{}", self))
-    }
-}
-
-impl From<image::ImageError> for CustomError {
-    fn from(e: image::ImageError) -> Self {
-        CustomError::ImageError(e)
-    }
-}
-
-impl From<tch::TchError> for CustomError {
-    fn from(e: tch::TchError) -> Self {
-        CustomError::TchError { field1: e }
-    }
-}
-
-impl From<actix_multipart::MultipartError> for CustomError {
-    fn from(error: actix_multipart::MultipartError) -> Self {
-        CustomError::ActixMultipartError(error)
-    }
-}
+use rtorchdist::tensor_device_cpu;
 
 #[derive(Serialize)]
 struct Prediction {
@@ -256,53 +157,13 @@ async fn predict(payload: Multipart) -> Result<HttpResponse, CustomError> {
     })
 }
 
-#[get("/self_check")]
+/*Ensure PyTorch Bindings For Rust are working properly for cpu */
+#[get("/check_pytorch_cpu")]
 async fn self_check() -> Result<HttpResponse, Error> {
-    //add log message that describes the function
-    log::info!("Starting self check in function: {}", module_path!());
-    //log the route that is being called
-    log::info!("Calling route: {}", module_path!());
-
-    let model_path = env::var("MODEL_PATH").unwrap_or_else(|_| "model/resnet34.ot".to_string());
-    log::info!("Model path: {}", model_path);
-
-    let model = tch::CModule::load(&model_path)
-        .map_err(|e| ErrorInternalServerError(format!("Failed to load model: {}", e)))?;
-    log::info!("Model loaded successfully");
-
-    let dummy_input = Tensor::ones(&[1, 3, 224, 224], (tch::Kind::Float, tch::Device::Cpu));
-    log::info!("Dummy input tensor:\n{}", dummy_input);
-
-    let output = model
-        .forward_is(&[IValue::from(dummy_input)])
-        .map_err(|e| ErrorInternalServerError(format!("Model failed on input: {}", e)))?;
-    log::info!("Forward pass through model completed successfully");
-
-    let prediction_tensor = match output {
-        IValue::Tensor(tensor) => tensor,
-        _ => {
-            return Err(ErrorInternalServerError(
-                "Model output is not a Tensor".to_string(),
-            ));
-        }
-    };
-    log::info!("Prediction tensor:\n{}", prediction_tensor);
-
-    let prediction_size = prediction_tensor.size();
-    if prediction_size[0] == 0 || prediction_tensor.numel() == 0 {
-        return Err(ErrorInternalServerError(
-            "Prediction tensor is empty!".to_string(),
-        ));
-    }
-    log::info!("Prediction tensor size: {:?}", prediction_size);
-
-    let class = get_prediction_class(&prediction_tensor)?;
-    log::info!("Most likely class index: {:?}", class);
-
-    let confidence = prediction_tensor.double_value(&[class as i64]);
-    log::info!("Confidence of most likely class: {}", confidence);
-
-    Ok(HttpResponse::Ok().json("Self-check completed successfully!"))
+    let tensor_size = tensor_device_cpu();
+    let message = "PyTorch CPU: self check successful with tensor: ".to_string() + &tensor_size;
+    log::info!("{}", message);
+    Ok(HttpResponse::Ok().json(message))
 }
 
 #[actix_web::main]

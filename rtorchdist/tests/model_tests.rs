@@ -1,7 +1,6 @@
-use log::{debug, error};
-use rtorchdist::get_prediction_class;
-use std::path::Path;
-use tch::{IValue, Tensor};
+use log::debug;
+use rtorchdist::{get_prediction_class, tensor_device_cpu};
+use tch::Tensor;
 
 #[derive(Debug)]
 struct ModelInfo {
@@ -72,5 +71,13 @@ fn test_get_prediction_class_no_model() -> Result<(), Box<dyn std::error::Error>
     println!("Class: {:?}", class);
 
     assert_eq!(class, 2);
+    Ok(())
+}
+//test tensor_device_cpu
+#[test]
+fn test_tensor_device_cpu() -> Result<(), Box<dyn std::error::Error>> {
+    let size_str = tensor_device_cpu();
+    println!("Tensor size: {:?}", size_str);
+    assert_eq!(size_str, "3");
     Ok(())
 }
