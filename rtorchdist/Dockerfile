@@ -23,7 +23,7 @@ FROM gcr.io/distroless/cc
 COPY --from=build-env /app/target/release/rtorchdist /
 COPY --from=build-env /app/model /model
 COPY --from=build-env /app/libtorch /app/libtorch
-COPY --from=build-env /app/resnet34.ot /resnet34.ot
+COPY --from=build-env /app/model/resnet34.ot /resnet34.ot
 
 # Set the required environment variables for Libtorch
 ENV LD_LIBRARY_PATH="/app/libtorch/lib:${LD_LIBRARY_PATH}"
