@@ -7,7 +7,7 @@ lint:
 refactor: format lint
 
 build:
-	cargo build -j 15 --release
+	cargo build -j 16 --release
 
 dbuild:
 	docker build -t pytorch-rust-distroless .

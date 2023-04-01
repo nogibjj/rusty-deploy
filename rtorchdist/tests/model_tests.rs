@@ -1,10 +1,20 @@
 use log::debug;
-use rtorchdist::{get_prediction_class, tensor_device_cpu};
-use tch::Tensor;
+use rtorchdist::{
+    get_model, predict_image, preprocess_image, tensor_device_cpu,
+};
+use std::fs::File;
+use std::io::Read;
 
 #[derive(Debug)]
 struct ModelInfo {
     model_path: &'static str,
+}
+
+fn read_image_data(file_path: &str) -> Vec<u8> {
+    let mut file = File::open(file_path).unwrap();
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer).unwrap();
+    buffer
 }
 
 fn get_models() -> Vec<ModelInfo> {
@@ -63,16 +73,13 @@ fn test_load_models() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
-fn test_get_prediction_class_no_model() -> Result<(), Box<dyn std::error::Error>> {
-    let output = Tensor::of_slice(&[1.0, 2.0, 3.0]).unsqueeze(0);
-    println!("Output tensor: {:?}", output);
-
-    let class = get_prediction_class(&output)?;
-    println!("Class: {:?}", class);
-
-    assert_eq!(class, 2);
-    Ok(())
+fn test_preprocess_image() {
+    let image_data = read_image_data("tests/fixtures/lion.jpg");
+    let tensor = preprocess_image(image_data);
+    assert!(tensor.is_ok());
 }
+ 
+
 //test tensor_device_cpu
 #[test]
 fn test_tensor_device_cpu() -> Result<(), Box<dyn std::error::Error>> {

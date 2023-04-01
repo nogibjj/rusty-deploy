@@ -1,33 +1,86 @@
+use actix_web::web::BytesMut;
+use futures::{StreamExt, TryStreamExt};
+use serde::Serialize;
+use std::env;
+use tch::vision::imagenet;
 use tch::Kind;
-use tch::{Device, Tensor};
-
+use tch::{Device, IValue, Tensor};
+//custom errors
+pub mod cerror;
+use cerror::CustomError;
 /*
 Model handling code
- */
-pub fn get_prediction_class(output: &Tensor) -> Result<usize, actix_web::Error> {
-    // Check if the output tensor has the expected dimensions.
-    if output.dim() != 2 || output.size()[0] != 1 {
-        return Err(actix_web::Error::from(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "Output tensor has an unexpected shape.",
-        )));
+*/
+
+#[derive(Serialize)]
+pub struct Prediction(usize, f64);
+
+pub async fn convert_payload_to_vec_u8(
+    mut payload: actix_multipart::Multipart,
+) -> Result<std::vec::Vec<u8>, cerror::CustomError> {
+    let mut bytes = BytesMut::new();
+    while let Some(field) = payload.next().await {
+        let field = field.map_err(cerror::CustomError::from)?;
+        let data = field
+            .map(|res| res.map_err(cerror::CustomError::from))
+            .try_fold(BytesMut::new(), |mut acc, chunk| async move {
+                acc.extend_from_slice(&chunk);
+                Ok(acc)
+            })
+            .await?;
+        bytes.extend_from_slice(&data);
     }
+    Ok::<std::vec::Vec<u8>, cerror::CustomError>(bytes.to_vec())
+}
 
-    // Get the maximum index.
-    let max_index = output.argmax(-1, false).to_kind(Kind::Int64);
+pub fn preprocess_image(image_data: Vec<u8>) -> Result<Tensor, CustomError> {
+    println!("Received image data with length {}", image_data.len());
+    let image = image::load_from_memory(&image_data)
+        .map_err(CustomError::from)?
+        .to_rgb8();
 
-    // Check if the maximum index tensor is well-formed.
-    if max_index.dim() != 1 || max_index.size()[0] != 1 {
-        return Err(actix_web::Error::from(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "Unexpected shape for max_index tensor.",
-        )));
-    }
+    // Save the preprocessed image as a temporary file
+    let temp_image_path = std::env::temp_dir().join("temp_image.jpg");
+    image.save(&temp_image_path).map_err(CustomError::from)?;
 
-    // Get the integer value from the maximum index tensor.
-    let int_value = max_index.int64_value(&[0]);
+    // Preprocess the image to match the model's requirements
+    let image = tch::vision::imagenet::load_image_and_resize224(temp_image_path)?;
 
-    Ok(int_value as usize)
+    Ok(image.unsqueeze(0))
+}
+
+pub fn get_model() -> Result<tch::CModule, CustomError> {
+    let model_path = match env::var("MODEL_PATH") {
+        Ok(path) => path,
+        Err(_) => "model/resnet34.ot".to_string(),
+    };
+    log::info!("Loading model from path: {}", model_path);
+    tch::CModule::load(model_path).map_err(CustomError::from)
+}
+
+pub async fn predict_image(
+    tensor: Tensor,
+    model: &tch::CModule,
+) -> Result<Prediction, CustomError> {
+    // Apply the forward pass of the model to get the logits
+    let output = model
+        .forward_is(&[IValue::from(tensor)])
+        .map_err(CustomError::from)?;
+
+    // Convert the logits to probabilities using softmax
+    let probabilities = match output {
+        IValue::Tensor(tensor) => tensor.softmax(-1, Kind::Float),
+        _ => return Err(CustomError::new("Output is not a Tensor!")),
+    };
+
+    // Get the index and probability of the most likely class
+    let top_result = imagenet::top(&probabilities, 1); // Bind the result to a variable
+    let (class, confidence) = top_result.first().unwrap();
+
+    // Parse confidence as f64
+    let confidence_f64 = confidence.parse::<f64>().map_err(CustomError::from)?;
+
+    Ok(Prediction(*class as usize, confidence_f64))
 }
 
 /*
