@@ -9,7 +9,7 @@
 
 ##### PyTorch Distroless Pre-Trained Model
 
-* Package PyTorch into a Rust Distroless Container
+* [Package PyTorch into a Rust Distroless Container](https://github.com/nogibjj/rusty-deploy/tree/main/rtorchdist)
 
 ##### Hugging Face Distroless Pre-Trained Model
 
