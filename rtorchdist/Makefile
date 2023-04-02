@@ -17,13 +17,10 @@ drun:
 
 test:
 	RUST_LOG=debug,info cargo test -- --nocapture
-.PHONY: run
 
-run:
-	#cargo build -j 15 --release && \
-	export RUST_BACKTRACE=1 && \
-	export RUSTFLAGS="-C target-cpu=native" && \
-	export XNNPACK_DISABLE=1 && \
+make run:
+	RUST_LOG="debug,info,actix_web=info"; \
+	RUST_BACKTRACE=1; \
 	cargo run
-
+	
 all: format lint test run

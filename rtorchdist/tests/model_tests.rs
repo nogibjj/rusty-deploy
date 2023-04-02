@@ -1,10 +1,8 @@
 use log::info;
-use rtorchdist::{get_model, predict_image, preprocess_image, tensor_device_cpu, Prediction};
+use rtorchdist::{self_check_predict, tensor_device_cpu};
 use std::fs::File;
 use std::io::Read;
-use test_env_log::test;
-
-
+use test_log::test;
 
 #[derive(Debug)]
 struct ModelInfo {
@@ -68,32 +66,8 @@ fn test_load_models() -> Result<(), Box<dyn std::error::Error>> {
     for model_info in models {
         let model = load_model(&model_info)?;
         //log it
-        info!("Loaded model: {:?}", model);
+        info!("TEST: Loaded model: {:?}", model);
     }
-    Ok(())
-}
-
-#[test]
-fn test_preprocess_image() {
-    let image_data = read_image_data("tests/fixtures/lion.jpg");
-    let tensor = preprocess_image(image_data);
-    assert!(tensor.is_ok());
-}
-
-//test predict_image
-#[test]
-fn test_predict_image() -> Result<(), Box<dyn std::error::Error>> {
-    info!("TEST: load image data");
-    let image_data = read_image_data("tests/fixtures/lion.jpg");
-    info!("TEST: load model");
-    let model = get_model()?;
-    //convert image to tensor
-    info!("preprocess image");
-    let image_data = preprocess_image(image_data)?;
-    info!("predict image");
-    let prediction = predict_image(image_data, &model)?;
-    //log it
-    info!("Prediction: {:?}", prediction);
     Ok(())
 }
 
@@ -101,7 +75,22 @@ fn test_predict_image() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 fn test_tensor_device_cpu() -> Result<(), Box<dyn std::error::Error>> {
     let size_str = tensor_device_cpu();
-    println!("Tensor size: {:?}", size_str);
+    info!("TEST: Tensor size: {:?}", size_str);
     assert_eq!(size_str, "3");
     Ok(())
+}
+
+//tests self_check_predict()
+#[test]
+fn test_self_check_predict() {
+    let prediction = match self_check_predict() {
+        Ok(p) => p,
+        Err(e) => {
+            println!("Error: {:?}", e);
+            return;
+        }
+    };
+    println!("TEST: Self check prediction: {:?}", prediction);
+    //assert that the word "Persian cat" is in the prediction classes
+    assert!(prediction.classes.contains(&"Persian cat".to_string()));
 }

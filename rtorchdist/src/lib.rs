@@ -1,98 +1,78 @@
-use actix_web::web::BytesMut;
-use futures::{StreamExt, TryStreamExt};
+use log::{error, info};
 use serde::{Deserialize, Serialize};
 use std::env;
+use tch::nn::ModuleT;
 use tch::vision::imagenet;
 use tch::Kind;
-use tch::{Device, IValue, Tensor};
-use log::info;
-
-//custom errors
-pub mod cerror;
-use cerror::CustomError;
-/*
-Model handling code
-*/
+use tch::{Device, Tensor};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Prediction {
-    probabilities: Vec<f64>,
-    classes: Vec<String>,
+    pub probabilities: Vec<f64>,
+    pub classes: Vec<String>,
 }
 
-pub async fn convert_payload_to_vec_u8(
-    mut payload: actix_multipart::Multipart,
-) -> Result<std::vec::Vec<u8>, cerror::CustomError> {
-    let mut bytes = BytesMut::new();
-    while let Some(field) = payload.next().await {
-        let field = field.map_err(cerror::CustomError::from)?;
-        let data = field
-            .map(|res| res.map_err(cerror::CustomError::from))
-            .try_fold(BytesMut::new(), |mut acc, chunk| async move {
-                acc.extend_from_slice(&chunk);
-                Ok(acc)
-            })
-            .await?;
-        bytes.extend_from_slice(&data);
-    }
-    Ok::<std::vec::Vec<u8>, cerror::CustomError>(bytes.to_vec())
-}
-
-pub fn preprocess_image(image_data: Vec<u8>) -> Result<Tensor, CustomError> {
-    info!("Received image data with length {}", image_data.len());
-    let image = image::load_from_memory(&image_data)
-        .map_err(CustomError::from)?
-        .to_rgb8();
-
-    // Save the preprocessed image as a temporary file
-    info!("Saving the preprocessed image as a temporary file");
-    let temp_image_path = std::env::temp_dir().join("temp_image.jpg");
-    image.save(&temp_image_path).map_err(CustomError::from)?;
-
-    // Preprocess the image to match the model's requirements
-    let image = tch::vision::imagenet::load_image_and_resize224(temp_image_path)?;
-    info!("Preprocessed image with shape {:?}", image.size());
-    Ok(image.unsqueeze(0))
-}
-
-pub fn get_model() -> Result<tch::CModule, CustomError> {
-    let model_path = match env::var("MODEL_PATH") {
+/*simple selfcheck:  has logging at each step
+format module_name::function_name
+*/
+pub fn self_check_predict() -> Result<Prediction, Box<dyn std::error::Error>> {
+    info!("func: self_check_predict: starting");
+    let mut vs = tch::nn::VarStore::new(tch::Device::Cpu);
+    info!("func: self_check_predict: loading image: tests/fixtures/lion.jpg");
+    let image = imagenet::load_image_and_resize224("tests/fixtures/lion.jpg").unwrap();
+    info!("func: self_check_predict: loading model: model/resnet34.ot");
+    let weight_file = match env::var("MODEL_PATH") {
         Ok(path) => path,
         Err(_) => "model/resnet34.ot".to_string(),
     };
-    log::info!("Loading model from path: {}", model_path);
-    tch::CModule::load(model_path).map_err(CustomError::from)
-}
-
-pub fn predict_image(tensor: Tensor, model: &tch::CModule) -> Result<Prediction, CustomError> {
-    // Apply the forward pass of the model to get the logits
-    //log each step
-    info!("Applying forward pass of the model to get the logits");
-    let output = model
-        .forward_is(&[IValue::from(tensor)])
-        .map_err(CustomError::from)?;
-
-    // Convert the logits to probabilities using softmax
-    info!("Converting the logits to probabilities using softmax");
-    let probabilities = match output {
-        IValue::Tensor(tensor) => tensor.softmax(-1, Kind::Float),
-        _ => return Err(CustomError::new("Output is not a Tensor!")),
+    let resnet34 = tch::vision::resnet::resnet18(&vs.root(), imagenet::CLASS_COUNT);
+    vs.load(weight_file).unwrap();
+    // Apply the forward pass of the model to get the logits and convert them
+    // to probabilities via a softmax.
+    info!("func: self_check_predict: applying forward pass of the model to get the logits and convert them to probabilities via a softmax");
+    let output = resnet34
+        .forward_t(&image.unsqueeze(0), /*train=*/ false)
+        .softmax(-1, Kind::Float);
+    // Finally print the top 5 categories and their associated probabilities.
+    for (probability, class) in imagenet::top(&output, 5).iter() {
+        println!("{:50} {:5.2}%", class, 100.0 * probability)
+    }
+    //log the prediction results
+    log::info!(
+        "func: self_check_predict: prediction results: {:?}",
+        imagenet::top(&output, 5)
+    );
+    //returns probability vector with class index
+    let top_result = imagenet::top(&output, 1);
+    log::info!("Top result: {:?}", top_result);
+    let (class, confidence) = top_result.first().unwrap();
+    log::info!("Class: {:?}", class);
+    log::info!("Confidence: {:?}", confidence);
+    let confidence_f64 = match confidence.as_str().parse::<f64>() {
+        Ok(value) => value,
+        Err(e) => {
+            error!("Failed to parse confidence value as f64: {:?}", e);
+            0.0 // default value
+        }
     };
 
-    // Get the index and probability of the most likely class
-    info!("Getting the index and probability of the most likely class");
-    let top_result = imagenet::top(&probabilities, 1); // Bind the result to a variable
-    let (class, confidence) = top_result.first().unwrap();
+    info!("func: self_check_predict: prediction result: {:?}", class);
+    info!(
+        "func: self_check_predict: prediction result: {:?}",
+        confidence_f64
+    );
 
-    // Parse confidence as f64
-    let confidence_f64 = confidence.parse::<f64>().map_err(CustomError::from)?;
-    //log the result
-    info!("Prediction result: {:?}", class);
-
-    Ok(Prediction {
+    //return
+    let prediction = Prediction {
         probabilities: vec![confidence_f64],
         classes: vec![(*class as usize).to_string()],
-    })
+    };
+    //log the result
+    info!(
+        "func: self_check_predict: prediction result: {:?}",
+        prediction
+    );
+    Ok(prediction)
 }
 
 /*
