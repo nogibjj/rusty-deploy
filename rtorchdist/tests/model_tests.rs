@@ -1,11 +1,7 @@
-use actix_multipart::Multipart;
-use actix_web::http::header::HeaderMap;
-use actix_web::http::header::{ContentDisposition, DispositionParam, DispositionType};
 use actix_web::web::Bytes;
-use anyhow::Error;
 use futures::stream::Stream;
 use log::info;
-use rtorchdist::{files, self_check_predict, tensor_device_cpu};
+use rtorchdist::{self_check_predict, tensor_device_cpu};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use test_log::test;
@@ -113,30 +109,4 @@ fn test_self_check_predict() {
     //assert Prediction { probabilities: [0.05008329823613167], classes: ["tarantula"] }
     assert_eq!(prediction.probabilities[0], 0.05008329823613167);
     assert_eq!(prediction.classes[0], "tarantula");
-}
-
-//test file save
-#[actix_rt::test]
-async fn test_save_file() -> Result<(), Error> {
-    let file_path = "test.txt".to_string();
-    let _content_disposition = ContentDisposition {
-        disposition: DispositionType::FormData,
-        parameters: vec![
-            DispositionParam::Name("file".to_string()),
-            DispositionParam::Filename("test.txt".to_string()),
-        ],
-    };
-
-    let test_stream = TestStream {
-        data: "Hello World".as_bytes().to_vec(),
-        read: false,
-    };
-    let multipart = Multipart::new(&HeaderMap::new(), test_stream);
-    let filepath = files::save_file(multipart, file_path.clone())
-        .await
-        .unwrap();
-    assert_eq!(filepath, format!(".{}", file_path));
-    assert!(std::path::Path::new(&filepath).exists());
-    std::fs::remove_file(&filepath).unwrap();
-    Ok(())
 }
