@@ -1,6 +1,7 @@
 use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer};
 
+mod logic;
 mod routes;
 
 #[actix_web::main]
@@ -10,10 +11,10 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
             .wrap(Logger::default())
-            .configure(routes::index::config)
-            .configure(routes::check_image_prediction::config)
-            .configure(routes::check_image_upload::config)
-            .configure(routes::check_pytorch_cpu::config)
+            .service(routes::index)
+            .service(routes::check_image_prediction)
+            .service(routes::check_image_upload)
+            .service(routes::check_pytorch_cpu)
     })
     .bind("0.0.0.0:8080")?
     .run()

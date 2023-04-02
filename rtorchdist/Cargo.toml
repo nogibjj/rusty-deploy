@@ -22,10 +22,6 @@ test-log = "0.2.11"
 actix-rt = "2.4.0"
 headers = "0.3.4"
 
-[lib]
-name = "rtorchdist"
-path = "src/lib.rs"
-
 [profile.release]
 opt-level = 3
 codegen-units = 1
