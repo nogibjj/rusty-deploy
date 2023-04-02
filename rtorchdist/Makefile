@@ -16,7 +16,7 @@ drun:
 	docker run -p 8080:8080 pytorch-rust-distroless
 
 test:
-	RUST_LOG=debug,info cargo test -- --nocapture
+	RUST_BACKTRACE=1 RUST_LOG=debug,info cargo test -- --nocapture
 
 make run:
 	RUST_LOG="debug,info,actix_web=info"; \
