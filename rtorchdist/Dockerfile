@@ -24,9 +24,13 @@ COPY --from=build-env /app/target/release/rtorchdist /
 COPY --from=build-env /app/model /model
 COPY --from=build-env /app/libtorch /app/libtorch
 COPY --from=build-env /app/model/resnet34.ot /resnet34.ot
+COPY --from=build-env /app/tests/fixtures/lion.jpg /tests/fixtures/lion.jpg
+ENV IMAGE_PATH /tests/fixtures/lion.jpg
+
 
 # Set the required environment variables for Libtorch
 ENV LD_LIBRARY_PATH="/app/libtorch/lib:${LD_LIBRARY_PATH}"
+# Your container will fail if you haven't downloaded the model and set the path
 ENV MODEL_PATH="/model/resnet34.ot"
 # Start the Actix-web server
 CMD ["./rtorchdist"]

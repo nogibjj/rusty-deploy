@@ -13,7 +13,7 @@ dbuild:
 	docker build -t pytorch-rust-distroless .
 
 drun:
-	docker run -p 8080:8080 pytorch-rust-distroless
+	docker run -p 8080:8080 -e RUST_LOG="info,actix_web=info" -e RUST_BACKTRACE=1 pytorch-rust-distroless
 
 test:
 	RUST_BACKTRACE=1 RUST_LOG=debug,info cargo test -- --nocapture

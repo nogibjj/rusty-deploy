@@ -65,8 +65,12 @@ pub mod files {
 pub fn self_check_predict() -> Result<Prediction, Box<dyn std::error::Error>> {
     log::info!("func: self_check_predict: starting");
     let mut vs = tch::nn::VarStore::new(tch::Device::Cpu);
-    log::info!("func: self_check_predict: loading image: tests/fixtures/lion.jpg");
-    let image = imagenet::load_image_and_resize224("tests/fixtures/lion.jpg").unwrap();
+    log::info!("func: self_check_predict: try loading image: tests/fixtures/lion.jpg");
+    let image_file = match env::var("IMAGE_PATH") {
+        Ok(path) => path,
+        Err(_) => "tests/fixtures/lion.jpg".to_string(),
+    };
+    let image = imagenet::load_image_and_resize224(&image_file).unwrap();
     log::info!("func: self_check_predict: loading model: model/resnet34.ot");
     let weight_file = match env::var("MODEL_PATH") {
         Ok(path) => path,
