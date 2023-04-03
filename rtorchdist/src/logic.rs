@@ -51,11 +51,10 @@ pub mod files {
                     error!("Error writing to file: {:?}", e);
                     actix_web::error::ErrorInternalServerError("Error writing to file")
                 })?;
-                let metadata = std::fs::metadata(&filepath).unwrap();
-                let file_size = metadata.len();
-                log::info!("func: save_file: file_size: {:?}", file_size);
             }
-
+            let metadata = std::fs::metadata(&filepath).unwrap();
+            let file_size = metadata.len();
+            log::info!("func: save_file: file_size: {:?}", file_size);
             return Ok(filepath);
         }
 

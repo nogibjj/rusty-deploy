@@ -20,8 +20,14 @@ pub async fn index() -> HttpResponse {
 pub async fn predict(payload: Multipart) -> Result<HttpResponse, Error> {
     //log starting upload and include route and function name
     log::info!("route: /predict function: predict()");
-    let file_path = "/tmp/check_image_upload".to_string();
-    let file_path = match files::save_file(payload, file_path).await {
+    // create the path if it doesn't exist
+    let temp_dir = Path::new("./tmp/");
+    if !temp_dir.exists() {
+        log::info!("Creating temp directory: {:?}", temp_dir);
+        std::fs::create_dir_all(temp_dir)?;
+    }
+    // save the file to the temp directory
+    let file_path = match files::save_file(payload, "/tmp/image.jpg".to_string()).await {
         Ok(path) => path,
         Err(e) => {
             let error_message = format!("File upload failed with error: {:?}", e);
@@ -62,14 +68,15 @@ pub async fn check_image_upload(payload: Multipart) -> Result<HttpResponse, Erro
     // log starting upload and include route and function name
     log::info!("route: /check_image_upload function: check_image_upload()");
 
-    // create the directory if it doesn't exist
-    let dir = Path::new("./tmp/check_image_upload");
-    if !dir.exists() {
-        std::fs::create_dir_all(dir)?;
+    // create the path if it doesn't exist
+    let temp_dir = Path::new("./tmp/");
+    if !temp_dir.exists() {
+        log::info!("Creating temp directory: {:?}", temp_dir);
+        std::fs::create_dir_all(temp_dir)?;
     }
 
     // use pattern matching to handle the result of saving the file
-    let result = match files::save_file(payload, "/tmp/check_image_upload".to_string()).await {
+    let result = match files::save_file(payload, "/tmp/image.jpg".to_string()).await {
         Ok(path) => {
             let status = "success".to_string();
             json!({ "status": status, "filepath": path })
@@ -80,7 +87,6 @@ pub async fn check_image_upload(payload: Multipart) -> Result<HttpResponse, Erro
             json!({ "status": status, "error": error })
         }
     };
-
     // return a successful response with the result
     Ok(HttpResponse::Ok().json(result))
 }
