@@ -21,6 +21,7 @@ anyhow = "1.0"
 test-log = "0.2.11"
 actix-rt = "2.4.0"
 headers = "0.3.4"
+md5 = "0.7.0"
 
 [profile.release]
 opt-level = 3

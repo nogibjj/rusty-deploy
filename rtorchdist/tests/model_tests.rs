@@ -111,3 +111,31 @@ fn test_self_check_predict() {
     assert_eq!(prediction.probabilities[0], 0.05008329823613167);
     assert_eq!(prediction.classes[0], "tarantula");
 }
+
+/*
+pub fn verify_image_contents(image_path: String, fixture_image_path: String) -> Result<(), Box<dyn std::error::Error>> {
+    log::info!("Verifying image contents of file: {:?}", image_path);
+
+    let mut image_file = File::open(image_path.clone())?;
+    let mut image_contents = Vec::new();
+    image_file.read_to_end(&mut image_contents)?;
+
+    let mut fixture_file = File::open(fixture_image_path.clone())?;
+    let mut fixture_contents = Vec::new();
+    fixture_file.read_to_end(&mut fixture_contents)?;
+
+    let image_checksum = md5::compute(image_contents);
+    let fixture_checksum = md5::compute(fixture_contents);
+    log::info!("Image checksum: {:?}", image_checksum);
+    log::info!("Fixture checksum: {:?}", fixture_checksum);
+
+    if image_checksum != fixture_checksum {
+        log::error!("Image contents of file {:?} do not match fixture {:?}. Image checksum: {:?}, Fixture checksum: {:?}", image_path, fixture_image_path, image_checksum, fixture_checksum);
+        return Err(format!("Image contents of file {:?} do not match fixture {:?}. Image checksum: {:?}, Fixture checksum: {:?}", image_path, fixture_image_path, image_checksum, fixture_checksum).into());
+    }
+
+    log::info!("Image contents of file {:?} match fixture {:?}. Image checksum: {:?}, Fixture checksum: {:?}", image_path, fixture_image_path, image_checksum, fixture_checksum);
+    Ok(())
+}
+
+ */

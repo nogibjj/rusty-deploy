@@ -19,7 +19,7 @@ test:
 	RUST_BACKTRACE=1 RUST_LOG=debug,info cargo test -- --nocapture
 
 make run:
-	RUST_LOG="debug,info,actix_web=info"; \
+	RUST_LOG="debug,info,trace,actix_web=info"; \
 	RUST_BACKTRACE=1; \
 	cargo run
 	

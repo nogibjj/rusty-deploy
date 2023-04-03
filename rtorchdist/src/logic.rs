@@ -1,6 +1,9 @@
 use actix_multipart::Multipart;
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::fs;
+use std::fs::File;
+use std::io::{Read, Write};
 use tch::nn::ModuleT;
 use tch::vision::imagenet;
 use tch::Kind;
@@ -117,10 +120,42 @@ pub fn self_check_predict() -> Result<Prediction, Box<dyn std::error::Error>> {
     Ok(prediction)
 }
 
+pub async fn verify_image(image_path: String) -> Result<bool, Box<dyn std::error::Error>> {
+    if fs::metadata(&image_path).is_err() {
+        log::error!(
+            "func: predict_image: image file not found: {:?}",
+            image_path
+        );
+        return Err(format!("File not found: {}", image_path).into());
+    }
+
+    let metadata = fs::metadata(&image_path)?;
+    let file_size = metadata.len();
+    log::info!("Image path exists, size: {:?} bytes", file_size);
+
+    Ok(true)
+}
+
 pub async fn predict_image(image_path: String) -> Result<Prediction, Box<dyn std::error::Error>> {
     log::info!("route: /predict function: predict_image()");
     log::info!("func: predict_image: loading image: {:?}", image_path);
-    let image = imagenet::load_image_and_resize224(&image_path).unwrap();
+    //lets add logging to ensure that the image is loaded and the path is correct with error handling
+    let verify_image = match verify_image(image_path.clone()).await {
+        Ok(verify_image) => verify_image,
+        Err(error) => return Err(error.into()),
+    };
+    if !verify_image {
+        log::error!(
+            "func: predict_image: image file not found: {:?}",
+            image_path
+        );
+        return Err(actix_web::error::ErrorBadRequest("Image file not found").into());
+    }
+
+    let image = match imagenet::load_image_and_resize224(&image_path) {
+        Ok(image) => image,
+        Err(error) => return Err(error.into()),
+    };
 
     log::info!("func: predict_image: starting");
     let mut vs = tch::nn::VarStore::new(tch::Device::Cpu);
