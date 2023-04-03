@@ -1,9 +1,7 @@
-use actix_multipart::Multipart;
+//use actix_multipart::Multipart;
 use serde::{Deserialize, Serialize};
 use std::env;
 use std::fs;
-use std::fs::File;
-use std::io::{Read, Write};
 use tch::nn::ModuleT;
 use tch::vision::imagenet;
 use tch::Kind;
