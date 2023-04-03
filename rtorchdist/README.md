@@ -10,6 +10,10 @@ drun:
 	docker run -p 8080:8080 pytorch-rust-distroless
 ```
 
+## Disclaimer!
+
+This is built for POC (Proof of concept) and doesn't handle edge cases in any manner, you must extend.
+
 ### Rust Image Prediction Web Server
 
 This is a Rust code that uses the Actix Web framework to create a simple web server that takes an image as input, runs it through a pre-trained ResNet34 model to make a prediction, and returns the predicted class and confidence score as a JSON response.
