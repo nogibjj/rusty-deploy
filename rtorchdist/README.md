@@ -14,17 +14,67 @@ drun:
 
 This is a Rust code that uses the Actix Web framework to create a simple web server that takes an image as input, runs it through a pre-trained ResNet34 model to make a prediction, and returns the predicted class and confidence score as a JSON response.
 
-### Error Handling
 
-The code imports necessary libraries and creates a `CustomError` enum for handling various errors. It also implements `From` traits for various error types and `ResponseError` trait for `CustomError` to generate `HttpResponse` from the errors.
+## Route: `/`
 
-### Routes
+This is the root route that provides instructions on how to send an image payload to the server using curl. The payload must be sent as a `multipart/form-data` and the image file must be attached using the `-F` option in the curl command.
 
-There are four main routes defined:
+**Method:** `GET`
 
-1. **GET /**: The index route, which returns instructions on how to send an image payload using curl for making predictions.
-2. **POST /predict**: The predict route, which receives an image as a multipart payload, processes it, runs the image through a ResNet34 model, and returns the predicted class and confidence score as a JSON response. (BROKEN CURRENTLY)
-3. **GET /check_pytorch_cpu**: The self_check route, which checks if the model is loaded and runs a dummy input through it, returning a success message if it works.
+**Response:**
+
+A `200 OK` response with a message containing instructions on how to send an image payload using curl.
+
+## Route: `/predict`
+
+This route is used to predict the content of an image. The image must be sent as a `multipart/form-data` payload and must be saved to a temporary directory before being passed to the prediction function. The predicted content of the image is returned in the response.
+
+**Method:** `POST`
+
+**Request Payload:**
+
+A `multipart/form-data` payload containing an image file.
+
+**Response:**
+
+- If the prediction is successful, a `200 OK` response with a JSON object containing a `"status"` field with a value of `"success"` and a `"result"` field with the predicted content of the image.
+- If the prediction fails, a `500 Internal Server Error` response with a JSON object containing a `"status"` field with a value of `"error"` and a `"message"` field with the error message.
+
+## Route: `/check_image_upload`
+
+This route is used to check if an image upload was successful. The image must be sent as a `multipart/form-data` payload and must be saved to a temporary directory before being passed to the check function. The response contains a JSON object with the status of the upload and the filepath of the saved image.
+
+**Method:** `POST`
+
+**Request Payload:**
+
+A `multipart/form-data` payload containing an image file.
+
+**Response:**
+
+A `200 OK` response with a JSON object containing either a `"status"` field with a value of `"success"` and a `"filepath"` field with the path of the saved image or a `"status"` field with a value of `"error"` and an `"error"` field with the error message.
+
+## Route: `/check_pytorch_cpu`
+
+This route is used to check if PyTorch is running on the CPU. The response contains a message indicating whether the self-check was successful or not.
+
+**Method:** `GET`
+
+**Response:**
+
+A `200 OK` response with a message indicating whether the self-check was successful or not.
+
+## Route: `/check_image_prediction`
+
+This route is used to check if the image recognition model is working correctly. The response contains the result of a self-check performed on the image recognition model.
+
+**Method:** `GET`
+
+**Response:**
+
+- If the self-check is successful, a `200 OK` response with a JSON object containing a `"status"` field with a value of `"success"` and a `"result"` field with the self-check result.
+- If the self-check fails, a `500 Internal Server Error` response with a JSON object containing a `"status"` field with a value of `"error"` and a `"message"` field with the error message.
+
 
 ## Main Function
 
@@ -62,7 +112,7 @@ C++ PyTorch API is functional. Installation complete.
 ### Test against Image
 
 * The index route will give you an example to curl against.
-* Selfcheck will self check model:  `curl localhost:8080/self_check`
+* Selfcheck routes will self check functions
 
 ### More Testing
 
