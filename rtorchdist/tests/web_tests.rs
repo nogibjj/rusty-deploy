@@ -1,6 +1,5 @@
-/*
 use actix_web::{http::StatusCode, test, App};
-use rtorchdist::index;
+use rtorchdist::routes::index;
 
 #[actix_rt::test]
 async fn test_index() {
@@ -14,4 +13,3 @@ async fn test_index() {
     let expected_body = "Send an image payload using curl with the following command:\ncurl -X POST -H \"Content-Type: multipart/form-data\" -F \"image=@/path/to/your/image.jpg\" http://127.0.0.1:8080/predict";
     assert_eq!(response_body, expected_body);
 }
-*/
