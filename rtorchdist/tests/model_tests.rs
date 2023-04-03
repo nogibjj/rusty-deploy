@@ -1,7 +1,8 @@
 use actix_web::web::Bytes;
 use futures::stream::Stream;
 use log::info;
-use rtorchdist::{self_check_predict, tensor_device_cpu};
+use rtorchdist::logic::self_check_predict;
+use rtorchdist::logic::tensor_device_cpu;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use test_log::test;

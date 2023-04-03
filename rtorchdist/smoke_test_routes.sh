@@ -11,3 +11,6 @@ curl -X GET http://127.0.0.1:8080/check_pytorch_cpu
 
 echo "Testing route: /check_image_upload"
 curl -X POST -F "file=@tests/fixtures/lion.jpg" http://127.0.0.1:8080/check_image_upload
+
+echo "Testing route: /predict"
+curl -X POST -H "Content-Type: multipart/form-data" -F "image=@tests/fixtures/lion.jpg" http://127.0.0.1:8080/predict

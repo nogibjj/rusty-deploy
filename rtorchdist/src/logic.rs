@@ -1,3 +1,4 @@
+use actix_multipart::Multipart;
 use serde::{Deserialize, Serialize};
 use std::env;
 use tch::nn::ModuleT;
@@ -109,6 +110,57 @@ pub fn self_check_predict() -> Result<Prediction, Box<dyn std::error::Error>> {
         "func: self_check_predict: prediction result: {:?}",
         prediction
     );
+    Ok(prediction)
+}
+
+pub async fn predict_image(image_path: String) -> Result<Prediction, Box<dyn std::error::Error>> {
+    log::info!("route: /predict function: predict_image()");
+    log::info!("func: predict_image: loading image: {:?}", image_path);
+    let image = imagenet::load_image_and_resize224(&image_path).unwrap();
+
+    log::info!("func: predict_image: starting");
+    let mut vs = tch::nn::VarStore::new(tch::Device::Cpu);
+
+    log::info!("func: predict_image: loading model: model/resnet34.ot");
+    let weight_file = match env::var("MODEL_PATH") {
+        Ok(path) => path,
+        Err(_) => "model/resnet34.ot".to_string(),
+    };
+    let resnet34 = tch::vision::resnet::resnet18(&vs.root(), imagenet::CLASS_COUNT);
+    vs.load(weight_file).unwrap();
+    log::info!("func: predict_image:  applying forward pass of the model to get the logits and convert them to probabilities via a softmax");
+    let output = resnet34
+        .forward_t(&image.unsqueeze(0), /*train=*/ false)
+        .softmax(-1, Kind::Float);
+
+    for (probability, class) in imagenet::top(&output, 5).iter() {
+        println!("{:50} {:5.2}%", class, 100.0 * probability)
+    }
+
+    log::info!(
+        "func: predict_image: : prediction results: {:?}",
+        imagenet::top(&output, 5)
+    );
+
+    let top_result = imagenet::top(&output, 1);
+    log::info!("Top result: {:?}", top_result);
+    let (probability, class) = top_result.first().unwrap(); // Swapped variables
+    log::info!("Class: {:?}", class);
+    log::info!("Confidence: {:?}", probability);
+    let confidence_f64 = *probability; // Directly use the probability value
+
+    log::info!("func: predict_image: : prediction result: {:?}", class);
+    log::info!(
+        "func: predict_image: : prediction result: {:?}",
+        confidence_f64
+    );
+
+    let prediction = Prediction {
+        probabilities: vec![confidence_f64],
+        classes: vec![class.to_string()], // Updated variable
+    };
+
+    log::info!("func: predict_image: : prediction result: {:?}", prediction);
     Ok(prediction)
 }
 
