@@ -1,5 +1,7 @@
 ## Rust Deployment Experiments
 
+My hypothesis is RUST is the ideal language for LLMOPs, NOT PYTHON.
+
 ### Workflows to Prove Out for Rust MLOps Deployment
 
 #### Distroless
