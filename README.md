@@ -23,3 +23,5 @@ My hypothesis is RUST is the ideal language for LLMOPs, NOT PYTHON.
 * Statically Linked HuggingFace to Rust Binary
 
 ### References
+
+* [huggingface/text-generation-inference a Rust example](https://github.com/huggingface/text-generation-inference)
